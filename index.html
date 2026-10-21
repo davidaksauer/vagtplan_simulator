@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vagtplanbygger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: full-width roster grid (staff x 14 days) on top, then three instrument panels: controls, penalty score, rule breaks. */
+  :root {
+    --bg: #e9eeeb;
+    --panel: #fafcfb;
+    --wkend: #edf2ef;
+    --ink: #18231e;
+    --muted: #5a6862;
+    --line: #cbd6d0;
+    --accent: #1f5f8b;
+    --dag: #f3cf4a;
+    --dag-ink: #3a2e00;
+    --aften: #4fb5a0;
+    --aften-ink: #04271f;
+    --nat: #434f9c;
+    --nat-ink: #ffffff;
+    --good: #178a5c;
+    --bad: #d4382c;
+    --btn: #18231e;
+    --btn-fg: #fafcfb;
+    --font-head: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+    --font-body: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101714;
+      --panel: #18211d;
+      --wkend: #1e2924;
+      --ink: #e3ebe7;
+      --muted: #94a39b;
+      --line: #2c3a34;
+      --accent: #6db2e3;
+      --dag: #d6b13a;
+      --dag-ink: #1c1600;
+      --aften: #3c9c88;
+      --aften-ink: #04201a;
+      --nat: #6a78c9;
+      --nat-ink: #0b1030;
+      --good: #4cd49a;
+      --bad: #ff7468;
+      --btn: #e3ebe7;
+      --btn-fg: #101714;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101714;
+    --panel: #18211d;
+    --wkend: #1e2924;
+    --ink: #e3ebe7;
+    --muted: #94a39b;
+    --line: #2c3a34;
+    --accent: #6db2e3;
+    --dag: #d6b13a;
+    --dag-ink: #1c1600;
+    --aften: #3c9c88;
+    --aften-ink: #04201a;
+    --nat: #6a78c9;
+    --nat-ink: #0b1030;
+    --good: #4cd49a;
+    --bad: #ff7468;
+    --btn: #e3ebe7;
+    --btn-fg: #101714;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.45;
+    padding-block: 20px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-family: var(--font-head); font-weight: 600; font-size: 30px; line-height: 1.1; letter-spacing: 0.01em; margin: 0 0 4px; text-wrap: balance; }
+  .sub { margin: 0; color: var(--muted); max-width: 66ch; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* roster grid */
+  .sched { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+  table.plan { border-collapse: collapse; width: 100%; min-width: 720px; font-variant-numeric: tabular-nums; }
+  .plan th, .plan td { border: 1px solid var(--line); padding: 0; text-align: center; }
+  .plan thead th { font-weight: 500; font-size: 12px; color: var(--muted); padding: 4px 2px; line-height: 1.25; }
+  .plan thead th b { display: block; font-family: var(--font-mono); font-weight: 500; font-size: 13px; color: var(--ink); }
+  .plan thead th.week { text-align: left; padding-left: 8px; color: var(--ink); font-weight: 600; }
+  .plan th.wk, .plan td.wk { background: var(--wkend); }
+  .plan th.name { text-align: left; padding: 0 10px; background: var(--panel); position: sticky; left: 0; min-width: 138px; font-weight: 500; white-space: nowrap; z-index: 1; }
+  .plan th.name small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .plan thead th.name { color: var(--muted); font-size: 12px; }
+  .plan th.sum, .plan td.sum { width: 56px; font-family: var(--font-mono); font-size: 12px; }
+  .plan td.sum.off { color: var(--bad); font-weight: 600; }
+  .plan td.sum.ok { color: var(--muted); }
+
+  .plan td.c { position: relative; height: 34px; min-width: 38px; font-family: var(--font-mono); font-weight: 500; font-size: 13px; }
+  .s0 { background: var(--panel); color: var(--muted); }
+  td.wk.s0 { background: var(--wkend); }
+  .s1 { background: var(--dag); color: var(--dag-ink); }
+  .s2 { background: var(--aften); color: var(--aften-ink); }
+  .s3 { background: var(--nat); color: var(--nat-ink); }
+
+  .chip { display: none; position: absolute; inset: 6px; border-radius: 3px; align-items: center; justify-content: center; font-size: 12px; }
+  .chip.s0 { border: 1px dashed var(--muted); }
+  .prop { box-shadow: inset 0 0 0 3px var(--panel); outline: 2px solid var(--ink); outline-offset: -2px; z-index: 1; }
+  .prop .chip { display: flex; }
+  .flash { animation: flash 1s ease-out; }
+  @keyframes flash { from { box-shadow: inset 0 0 0 3px var(--good); } to { box-shadow: inset 0 0 0 3px transparent; } }
+  .bad::after { content: ""; position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 10px 10px 0; border-color: transparent var(--bad) transparent transparent; }
+  .wish::before { content: ""; position: absolute; left: 4px; bottom: 4px; width: 5px; height: 5px; border: 1.5px solid var(--ink); border-radius: 50%; opacity: 0.75; }
+
+  .plan tfoot th.name { font-size: 12px; color: var(--muted); }
+  .plan td.cov { height: 26px; font-family: var(--font-mono); font-size: 12px; }
+  .plan td.cov.ok { color: var(--good); }
+  .plan td.cov.short { background: var(--bad); color: #fff; font-weight: 600; }
+  .plan td.cov.over { color: var(--accent); font-weight: 600; }
+
+  .status { margin: 0; min-height: 2.9em; font-family: var(--font-mono); font-size: 12.5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--muted); font-size: 12px; margin: 0; padding: 0; list-style: none; }
+  .legend li { display: flex; align-items: center; gap: 7px; }
+  .lg { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 18px; border: 1px solid var(--line); font-family: var(--font-mono); font-size: 11px; font-weight: 500; position: relative; }
+  .lg.ring { background: var(--panel); outline: 2px solid var(--ink); outline-offset: -2px; box-shadow: inset 0 0 0 3px var(--panel); }
+  .lg.ringdot::before { content: ""; width: 6px; height: 6px; border: 1.5px solid var(--ink); border-radius: 50%; }
+  .lg.tri { background: var(--panel); }
+  .lg.tri::after { content: ""; position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 9px 9px 0; border-color: transparent var(--bad) transparent transparent; }
+
+  /* panels */
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; align-items: start; }
+  .block { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0; }
+  .score { display: flex; align-items: baseline; gap: 8px; }
+  .score b { font-family: var(--font-mono); font-weight: 500; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .score span { color: var(--muted); font-size: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+  .stats div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .stats dt { font-size: 11px; color: var(--muted); }
+  .stats dd { margin: 0; font-family: var(--font-mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+  #pct { color: var(--good); }
+  canvas#chart { display: block; width: 100%; height: 140px; }
+
+  .rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .rules li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 10px; align-items: baseline; }
+  .rules .t { font-weight: 500; }
+  .rules .t small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .rules .n { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rules .p { font-family: var(--font-mono); font-size: 14px; min-width: 3.2ch; text-align: right; font-variant-numeric: tabular-nums; }
+  .rules .bar { grid-column: 1 / -1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .rules .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+
+  .btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  button { font: inherit; font-weight: 500; padding: 9px 12px; border-radius: 5px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--ink); }
+  button.primary { background: var(--btn); color: var(--btn-fg); border-color: var(--btn); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field .row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+  .field output { font-family: var(--font-mono); color: var(--muted); font-size: 12px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+  .check { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 2px 8px; align-items: start; }
+  .check input { margin: 3px 0 0; accent-color: var(--accent); }
+  .check small { grid-column: 2; color: var(--muted); font-size: 12px; line-height: 1.4; }
+</style>
+
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>Vagtplanbygger</h1>
+    <p class="sub">Tolv medarbejdere, to uger og tre vagthold. Start med en tilfældig plan, og lad lokal søgning rette de værste brud på reglerne, ét træk ad gangen.</p>
+  </header>
+
+  <section aria-label="Vagtplan" style="display:flex;flex-direction:column;gap:10px">
+    <div class="sched"><table class="plan" id="plan"></table></div>
+    <p id="status" class="status" aria-live="polite"></p>
+    <ul class="legend">
+      <li><span class="lg s1">D</span>Dag 07–15</li>
+      <li><span class="lg s2">A</span>Aften 15–23</li>
+      <li><span class="lg s3">N</span>Nat 23–07</li>
+      <li><span class="lg s0"></span>Fri</li>
+      <li><span class="lg ringdot"></span>ønsker fri</li>
+      <li><span class="lg tri"></span>regelbrud</li>
+      <li><span class="lg ring"></span>foreslået ændring</li>
+    </ul>
+  </section>
+
+  <div class="panels">
+    <div class="block">
+      <div class="btns">
+        <button id="play" class="primary" type="button">Pause</button>
+        <button id="step" type="button">Ét trin</button>
+        <button id="skip" type="button">Kør til ende</button>
+        <button id="kick" type="button">Ryst planen</button>
+        <button id="restart" type="button">Ny tilfældig plan</button>
+        <button id="fresh" type="button">Nye ønsker</button>
+      </div>
+      <div class="field">
+        <div class="row"><label for="speed">Hastighed</label><output id="speedOut">8</output></div>
+        <input id="speed" type="range" min="1" max="13" value="8">
+      </div>
+      <label class="check"><input id="m0" type="checkbox" checked><span>Skift vagt</span><small>Ændr én enkelt vagt til en anden vagttype eller til fri.</small></label>
+      <label class="check"><input id="m1" type="checkbox" checked><span>Byt vagter</span><small>To medarbejdere bytter vagt på samme dag, så dækningen er uændret.</small></label>
+      <label class="check"><input id="m2" type="checkbox" checked><span>Byt dage</span><small>En medarbejder bytter indhold på to dage, så antal vagter er uændret.</small></label>
+      <label class="check"><input id="pv" type="checkbox"><span>Vis træk, før det udføres</span><small>Hvert træk vises med en ramme og venter, til du trykker Udfør træk.</small></label>
+    </div>
+
+    <div class="block">
+      <p class="label">Strafpoint, lavere er bedre</p>
+      <div class="score"><b id="cost">0</b><span>point</span></div>
+      <dl class="stats">
+        <div><dt>Bedre med</dt><dd id="pct">0 %</dd></div>
+        <div><dt>Træk</dt><dd id="moves">0</dd></div>
+        <div><dt>Vagter dækket</dt><dd id="cover">0 %</dd></div>
+      </dl>
+      <canvas id="chart" aria-label="Strafpoint efter hvert træk"></canvas>
+    </div>
+
+    <div class="block">
+      <p class="label">Regelbrud</p>
+      <ul class="rules" id="rules"></ul>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var NP = 12, ND = 14, MAXRUN = 5, MAXNIGHT = 3;
+  // name, target number of shifts in the two weeks, contract share
+  var STAFF = [
+    ['Anne S.', 10, 100], ['Mads K.', 10, 100], ['Camilla R.', 10, 100], ['Jens L.', 10, 100],
+    ['Sofie H.', 10, 100], ['Henrik B.', 10, 100], ['Louise P.', 10, 100], ['Peter N.', 10, 100],
+    ['Mette O.', 6, 60], ['Rasmus T.', 6, 60], ['Katrine V.', 6, 60], ['Thomas D.', 6, 60]
+  ];
+  var SHIFT = ['fri', 'dagvagt', 'aftenvagt', 'nattevagt'];
+  var LETTER = ['', 'D', 'A', 'N'];
+  var WD = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
+  var WDL = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'];
+  var MONTH = ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'];
+  function dateOf(d) { return new Date(2026, 9, 26 + d); } // Monday 26 October 2026
+
+  // staffing needed per day: [_, day, evening, night]
+  var need = [], needTotal = 0;
+  for (var d0 = 0; d0 < ND; d0++) {
+    var nd = d0 % 7 < 5 ? [0, 3, 3, 2] : [0, 2, 2, 2];
+    need.push(nd); needTotal += nd[1] + nd[2] + nd[3];
+  }
+
+  var W = { under: 100, over: 15, rest: 60, consec: 40, night: 30, hours: 12, wish: 20 };
+  var RULES = [
+    ['under', 'Mangler personale', 'pr. manglende person på en vagt'],
+    ['over', 'For mange på vagt', 'pr. ekstra person'],
+    ['rest', 'For kort hvile', 'aften til dag, nat til dag eller nat til aften'],
+    ['consec', 'Mere end 5 arbejdsdage i træk', 'pr. dag over grænsen'],
+    ['night', 'Mere end 3 nattevagter i træk', 'pr. nat over grænsen'],
+    ['hours', 'Afviger fra aftalt antal vagter', 'pr. vagt fra målet'],
+    ['wish', 'Brudte fridagsønsker', 'pr. ønske der ikke er opfyldt']
+  ];
+
+  var sched = new Uint8Array(NP * ND), wishes = new Uint8Array(NP * ND), bad = new Uint8Array(NP * ND);
+  var E = { under: 0, over: 0, rest: 0, consec: 0, night: 0, hours: 0, wish: 0 };
+  var Ecur = null, curCost = 0, cov = [];
+  var hist = [], moves = 0, startCost = 0;
+  var anim = null, running = !reduced, done = false, stepReq = false, statusText = '';
+  var DUR = [4000, 2600, 1800, 1100, 760, 520, 360, 240, 160, 100, 60, 30, 10];
+  var APPLY_AT = 0.55;
+  function dur() { return reduced ? 120 : DUR[+$('speed').value - 1]; }
+  function fmt(v) { return v.toLocaleString('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 1 }); }
+  function fmtInt(v) { return Math.round(v).toLocaleString('da-DK'); }
+
+  // ---- cost ----
+  var cnt = [0, 0, 0, 0];
+  function evaluate(s, flags) {
+    var under = 0, over = 0, rest = 0, consec = 0, night = 0, hours = 0, wish = 0, d, p, sh, i, v;
+    for (d = 0; d < ND; d++) {
+      cnt[1] = cnt[2] = cnt[3] = 0;
+      for (p = 0; p < NP; p++) { v = s[p * ND + d]; if (v) cnt[v]++; }
+      for (sh = 1; sh <= 3; sh++) {
+        var df = cnt[sh] - need[d][sh];
+        if (df < 0) under -= df; else over += df;
+      }
+    }
+    for (p = 0; p < NP; p++) {
+      var run = 0, nr = 0, work = 0;
+      for (d = 0; d < ND; d++) {
+        i = p * ND + d; v = s[i];
+        if (v) { work++; run++; if (run > MAXRUN) { consec++; if (flags) flags[i] = 1; } } else run = 0;
+        if (v === 3) { nr++; if (nr > MAXNIGHT) { night++; if (flags) flags[i] = 1; } } else nr = 0;
+        if (d > 0) {
+          var pr = s[i - 1];
+          if ((pr === 2 && v === 1) || (pr === 3 && (v === 1 || v === 2))) { rest++; if (flags) flags[i] = 1; }
+        }
+        if (v && wishes[i]) { wish++; if (flags) flags[i] = 1; }
+      }
+      hours += Math.abs(work - STAFF[p][1]);
+    }
+    E.under = under; E.over = over; E.rest = rest; E.consec = consec; E.night = night; E.hours = hours; E.wish = wish;
+    return under * W.under + over * W.over + rest * W.rest + consec * W.consec + night * W.night + hours * W.hours + wish * W.wish;
+  }
+
+  // ---- setup ----
+  function randomPlan() {
+    for (var i = 0; i < sched.length; i++) {
+      var r = Math.random();
+      sched[i] = r < 0.4 ? 0 : r < 0.6 ? 1 : r < 0.8 ? 2 : 3;
+    }
+  }
+  function newWishes() {
+    wishes.fill(0);
+    var n = 0;
+    while (n < 8) {
+      var i = Math.floor(Math.random() * sched.length);
+      if (!wishes[i]) { wishes[i] = 1; n++; }
+    }
+  }
+  function reset() {
+    randomPlan();
+    startCost = evaluate(sched);
+    hist = [startCost];
+    moves = 0; anim = null; done = false; stepReq = false;
+    statusText = 'Tilfældig startplan. Vagterne er fordelt uden hensyn til dækning, hvile eller ønsker.';
+    redraw(); updateButtons();
+  }
+
+  // ---- moves ----
+  function candidates() {
+    var out = [], p, q, d, d2, v, s;
+    if ($('m0').checked) {
+      for (p = 0; p < NP; p++) for (d = 0; d < ND; d++) {
+        v = sched[p * ND + d];
+        for (s = 0; s < 4; s++) if (s !== v) out.push((0 << 24) | (p << 16) | (d << 8) | s);
+      }
+    }
+    if ($('m1').checked) {
+      for (d = 0; d < ND; d++) for (p = 0; p < NP; p++) for (q = p + 1; q < NP; q++) {
+        if (sched[p * ND + d] !== sched[q * ND + d]) out.push((1 << 24) | (d << 16) | (p << 8) | q);
+      }
+    }
+    if ($('m2').checked) {
+      for (p = 0; p < NP; p++) for (d = 0; d < ND; d++) for (d2 = d + 1; d2 < ND; d2++) {
+        if (sched[p * ND + d] !== sched[p * ND + d2]) out.push((2 << 24) | (p << 16) | (d << 8) | d2);
+      }
+    }
+    for (var i = out.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+    return out;
+  }
+
+  function cellsFor(t, a, b, c) {
+    if (t === 0) { var i0 = a * ND + b; return [{ i: i0, from: sched[i0], to: c }]; }
+    if (t === 1) {
+      var i1 = b * ND + a, i2 = c * ND + a;
+      return [{ i: i1, from: sched[i1], to: sched[i2] }, { i: i2, from: sched[i2], to: sched[i1] }];
+    }
+    var j1 = a * ND + b, j2 = a * ND + c;
+    return [{ i: j1, from: sched[j1], to: sched[j2] }, { i: j2, from: sched[j2], to: sched[j1] }];
+  }
+
+  function findMove() {
+    var base = evaluate(sched), list = candidates();
+    for (var k = 0; k < list.length; k++) {
+      var code = list[k], t = code >> 24, a = (code >> 16) & 255, b = (code >> 8) & 255, c = code & 255;
+      var cells = cellsFor(t, a, b, c), n, x;
+      for (x = 0; x < cells.length; x++) sched[cells[x].i] = cells[x].to;
+      n = evaluate(sched);
+      for (x = 0; x < cells.length; x++) sched[cells[x].i] = cells[x].from;
+      if (n < base - 1e-9) return { t: t, cells: cells, delta: n - base };
+    }
+    return null;
+  }
+
+  function dl(d) { var dt = dateOf(d); return WDL[d % 7] + ' ' + dt.getDate() + '/' + (dt.getMonth() + 1); }
+  function describe(mv) {
+    var save = ' Sparer ' + fmtInt(-mv.delta) + ' point.', c = mv.cells, p0 = Math.floor(c[0].i / ND), d0 = c[0].i % ND;
+    if (mv.t === 0) return 'Skift vagt: ' + STAFF[p0][0] + ' skifter fra ' + SHIFT[c[0].from] + ' til ' + SHIFT[c[0].to] + ' ' + dl(d0) + '.' + save;
+    var p1 = Math.floor(c[1].i / ND), d1 = c[1].i % ND;
+    if (mv.t === 1) return 'Byt vagter: ' + STAFF[p0][0] + ' (' + SHIFT[c[0].from] + ') og ' + STAFF[p1][0] + ' (' + SHIFT[c[1].from] + ') bytter vagt ' + dl(d0) + '.' + save;
+    return 'Byt dage: ' + STAFF[p0][0] + ' bytter ' + dl(d0) + ' (' + SHIFT[c[0].from] + ') med ' + dl(d1) + ' (' + SHIFT[c[1].from] + ').' + save;
+  }
+
+  function applyMove() {
+    anim.mv.cells.forEach(function (c) { sched[c.i] = c.to; });
+    moves++;
+    hist.push(evaluate(sched));
+    anim.applied = true;
+  }
+  function confirmMove() {
+    if (!anim || !anim.waiting) return;
+    anim.waiting = false; anim.confirmed = true;
+    anim.t0 = performance.now() - APPLY_AT * anim.dur;
+    statusText = describe(anim.mv);
+    updateButtons();
+  }
+  function finish() {
+    done = true; running = false; anim = null;
+    var c = evaluate(sched);
+    statusText = c === 0
+      ? 'Perfekt plan efter ' + moves + ' træk. Ingen regelbrud tilbage.'
+      : 'Lokalt optimum efter ' + moves + ' træk. Ingen enkelt ændring eller bytning sænker strafpoint, men en bedre plan kan findes. Prøv Ryst planen.';
+    redraw(); updateButtons();
+  }
+  function runToEnd() {
+    anim = null; stepReq = false;
+    var mv, guard = 0;
+    while (guard++ < 3000 && (mv = findMove())) {
+      mv.cells.forEach(function (c) { sched[c.i] = c.to; });
+      moves++; hist.push(evaluate(sched));
+    }
+    finish();
+  }
+  function kick() {
+    anim = null; stepReq = false;
+    for (var n = 0; n < 8; n++) sched[Math.floor(Math.random() * sched.length)] = Math.floor(Math.random() * 4);
+    hist.push(evaluate(sched));
+    done = false;
+    running = !reduced && !$('pv').checked;
+    statusText = 'Planen er rystet: 8 tilfældige vagter er ændret. Søger videre.';
+    redraw(); updateButtons();
+  }
+
+  // ---- table ----
+  var cellEl = [], chipEl = [], letEl = [], sumEl = [], covEl = [], lastTitle = [];
+  function build() {
+    var h = '<caption class="sr">Vagtplan for to uger</caption><thead><tr><th class="name" rowspan="2">Medarbejder</th>';
+    for (var w = 0; w < 2; w++) {
+      var a = dateOf(7 * w), b = dateOf(7 * w + 6);
+      h += '<th class="week" colspan="7">Uge ' + (44 + w) + ' · ' + a.getDate() + '. ' + MONTH[a.getMonth()] + ' til ' + b.getDate() + '. ' + MONTH[b.getMonth()] + '</th>';
+    }
+    h += '<th class="sum" rowspan="2">Vagter</th></tr><tr>';
+    for (var d = 0; d < ND; d++) h += '<th class="' + (d % 7 > 4 ? 'wk' : '') + '" scope="col">' + WD[d % 7] + '<b>' + dateOf(d).getDate() + '</b></th>';
+    h += '</tr></thead><tbody>';
+    for (var p = 0; p < NP; p++) {
+      h += '<tr><th class="name" scope="row">' + STAFF[p][0] + '<small>' + STAFF[p][2] + ' %</small></th>';
+      for (d = 0; d < ND; d++) h += '<td class="c s0' + (d % 7 > 4 ? ' wk' : '') + '" data-i="' + (p * ND + d) + '"><span class="l"></span><span class="chip"></span></td>';
+      h += '<td class="sum" data-p="' + p + '"></td></tr>';
+    }
+    h += '</tbody><tfoot>';
+    var names = ['', 'Dækning dag', 'Dækning aften', 'Dækning nat'];
+    for (var sh = 1; sh <= 3; sh++) {
+      h += '<tr><th class="name" scope="row">' + names[sh] + '</th>';
+      for (d = 0; d < ND; d++) h += '<td class="cov' + (d % 7 > 4 ? ' wk' : '') + '" data-sh="' + sh + '" data-d="' + d + '"></td>';
+      h += '<td class="sum"></td></tr>';
+    }
+    h += '</tfoot>';
+    $('plan').innerHTML = h;
+    var tds = $('plan').querySelectorAll('td.c');
+    for (var k = 0; k < tds.length; k++) {
+      var i = +tds[k].getAttribute('data-i');
+      cellEl[i] = tds[k]; letEl[i] = tds[k].children[0]; chipEl[i] = tds[k].children[1];
+    }
+    $('plan').querySelectorAll('td.sum[data-p]').forEach(function (e) { sumEl[+e.getAttribute('data-p')] = e; });
+    $('plan').querySelectorAll('td.cov').forEach(function (e) {
+      covEl[(+e.getAttribute('data-sh')) * 100 + (+e.getAttribute('data-d'))] = e;
+    });
+    var r = '';
+    RULES.forEach(function (x) {
+      r += '<li id="r-' + x[0] + '"><span class="t">' + x[1] + '<small>' + x[2] + ', ' + W[x[0]] + ' point</small></span><span class="n"></span><span class="p"></span><span class="bar"><i></i></span></li>';
+    });
+    $('rules').innerHTML = r;
+  }
+
+  function renderGrid() {
+    bad.fill(0);
+    curCost = evaluate(sched, bad);
+    Ecur = { under: E.under, over: E.over, rest: E.rest, consec: E.consec, night: E.night, hours: E.hours, wish: E.wish };
+    var propSet = {}, flashSet = {}, proposing = anim && !anim.applied, i, p, d, sh;
+    if (anim) anim.mv.cells.forEach(function (c) { if (proposing) propSet[c.i] = c; else flashSet[c.i] = c; });
+    var work = new Array(NP).fill(0), counts = [[0, 0, 0, 0]];
+    for (d = 0; d < ND; d++) counts.push([0, 0, 0, 0]);
+    for (i = 0; i < sched.length; i++) {
+      var v = sched[i];
+      p = Math.floor(i / ND); d = i % ND;
+      if (v) { work[p]++; counts[d][v]++; }
+      var cls = 'c s' + v + (d % 7 > 4 ? ' wk' : '') + (wishes[i] ? ' wish' : '') + (bad[i] ? ' bad' : '') + (propSet[i] ? ' prop' : flashSet[i] ? ' flash' : '');
+      if (cellEl[i].className !== cls) cellEl[i].className = cls;
+      var ltr = LETTER[v];
+      if (letEl[i].textContent !== ltr) letEl[i].textContent = ltr;
+      if (propSet[i]) {
+        var to = propSet[i].to;
+        chipEl[i].className = 'chip s' + to;
+        chipEl[i].textContent = to ? LETTER[to] : '–';
+      } else if (chipEl[i].className !== 'chip') {
+        chipEl[i].className = 'chip'; chipEl[i].textContent = '';
+      }
+      var ttl = STAFF[p][0] + ', ' + dl(d) + ': ' + SHIFT[v] + (wishes[i] ? ' (ønsker fri)' : '');
+      if (lastTitle[i] !== ttl) { lastTitle[i] = ttl; cellEl[i].title = ttl; }
+    }
+    for (p = 0; p < NP; p++) {
+      var tx = work[p] + '/' + STAFF[p][1];
+      sumEl[p].textContent = tx;
+      sumEl[p].className = 'sum ' + (work[p] === STAFF[p][1] ? 'ok' : 'off');
+    }
+    for (d = 0; d < ND; d++) for (sh = 1; sh <= 3; sh++) {
+      var got = counts[d][sh], want = need[d][sh], el = covEl[sh * 100 + d];
+      el.textContent = got + '/' + want;
+      el.className = 'cov' + (d % 7 > 4 ? ' wk' : '') + (got < want ? ' short' : got > want ? ' over' : ' ok');
+    }
+  }
+
+  function renderRules() {
+    var base = Math.max(startCost, 1);
+    RULES.forEach(function (x) {
+      var li = $('r-' + x[0]), n = Ecur[x[0]], pts = n * W[x[0]];
+      li.children[1].textContent = n + ' stk.';
+      li.children[2].textContent = fmtInt(pts);
+      li.children[3].firstChild.style.width = Math.min(100, pts / base * 100) + '%';
+    });
+  }
+
+  function updateStats() {
+    $('cost').textContent = fmtInt(curCost);
+    $('pct').textContent = fmt(startCost > 0 ? Math.max(0, (1 - curCost / startCost) * 100) : 0) + ' %';
+    $('moves').textContent = moves;
+    $('cover').textContent = fmt((needTotal - Ecur.under) / needTotal * 100) + ' %';
+  }
+
+  // ---- chart ----
+  var chv = $('chart'), cctx = chv.getContext('2d');
+  function colors() {
+    var s = getComputedStyle(document.documentElement), g = function (n) { return s.getPropertyValue(n).trim(); };
+    return { muted: g('--muted'), line: g('--line'), accent: g('--accent'), good: g('--good') };
+  }
+  function sizeChart() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    chv.width = Math.max(1, Math.round((chv.clientWidth || 280) * dpr));
+    chv.height = Math.max(1, Math.round((chv.clientHeight || 140) * dpr));
+  }
+  function drawChart() {
+    var c = colors(), w = chv.clientWidth || 280, h = chv.clientHeight || 140, dpr = chv.width / w;
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cctx.clearRect(0, 0, w, h);
+    var L = 44, R = 10, T = 8, B = 20, pw = w - L - R, ph = h - T - B;
+    var ymax = Math.max.apply(null, hist), ymin = 0;
+    if (ymax < 1) ymax = 1;
+    var xmax = Math.max(hist.length - 1, 1);
+    var X = function (i) { return L + i / xmax * pw; };
+    var Y = function (v) { return T + (1 - (v - ymin) / (ymax - ymin)) * ph; };
+    cctx.font = '11px "IBM Plex Mono", ui-monospace, monospace';
+    cctx.textAlign = 'right'; cctx.textBaseline = 'middle';
+    [ymax, ymax / 2, 0].forEach(function (v) {
+      var y = Y(v);
+      cctx.strokeStyle = c.line; cctx.lineWidth = 1;
+      cctx.beginPath(); cctx.moveTo(L, y); cctx.lineTo(w - R, y); cctx.stroke();
+      cctx.fillStyle = c.muted; cctx.fillText(fmtInt(v), L - 6, y);
+    });
+    cctx.textBaseline = 'alphabetic';
+    cctx.textAlign = 'left'; cctx.fillStyle = c.muted; cctx.fillText('0', L, h - 5);
+    cctx.textAlign = 'right'; cctx.fillText(xmax + ' træk', w - R, h - 5);
+    cctx.beginPath();
+    hist.forEach(function (v, i) { if (i === 0) cctx.moveTo(X(i), Y(v)); else cctx.lineTo(X(i), Y(v)); });
+    cctx.strokeStyle = c.accent; cctx.lineWidth = 2; cctx.lineJoin = 'round'; cctx.stroke();
+    cctx.lineTo(X(hist.length - 1), Y(0)); cctx.lineTo(X(0), Y(0)); cctx.closePath();
+    cctx.globalAlpha = 0.14; cctx.fillStyle = c.accent; cctx.fill(); cctx.globalAlpha = 1;
+    cctx.beginPath(); cctx.arc(X(hist.length - 1), Y(hist[hist.length - 1]), 4, 0, Math.PI * 2);
+    cctx.fillStyle = c.good; cctx.fill();
+  }
+
+  function redraw() {
+    renderGrid(); renderRules(); updateStats(); drawChart();
+    $('status').textContent = statusText;
+  }
+
+  function updateButtons() {
+    var waiting = !!(anim && anim.waiting);
+    $('play').textContent = running ? 'Pause' : 'Afspil';
+    $('play').disabled = done;
+    $('step').textContent = waiting ? 'Udfør træk' : 'Ét trin';
+    $('step').disabled = done || (running && !waiting);
+    $('skip').disabled = done;
+  }
+
+  // ---- loop ----
+  function frame(now) {
+    if (!anim && !done && (running || stepReq)) {
+      stepReq = false;
+      var mv = findMove();
+      if (!mv) finish();
+      else {
+        anim = { mv: mv, t0: now, dur: dur(), applied: false, p: 0, waiting: false, confirmed: false };
+        statusText = describe(mv);
+        if ($('pv').checked) { anim.waiting = true; statusText += ' Tryk på Udfør træk for at gennemføre det.'; }
+        redraw(); updateButtons();
+      }
+    }
+    if (anim && !anim.waiting) {
+      anim.p = (now - anim.t0) / anim.dur;
+      if (anim.p >= APPLY_AT && !anim.applied) { applyMove(); redraw(); }
+      if (anim.p >= 1) { anim = null; redraw(); updateButtons(); }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ---- controls ----
+  $('play').addEventListener('click', function () { if (done) return; running = !running; updateButtons(); });
+  $('step').addEventListener('click', function () {
+    if (done) return;
+    if (anim && anim.waiting) { confirmMove(); return; }
+    if (anim) return;
+    running = false; stepReq = true; updateButtons();
+  });
+  $('skip').addEventListener('click', runToEnd);
+  $('kick').addEventListener('click', kick);
+  $('restart').addEventListener('click', function () { reset(); running = !reduced && !$('pv').checked; updateButtons(); });
+  $('fresh').addEventListener('click', function () { newWishes(); reset(); running = !reduced && !$('pv').checked; updateButtons(); });
+  $('speed').addEventListener('input', function () { $('speedOut').textContent = $('speed').value; });
+  $('pv').addEventListener('change', function () {
+    if ($('pv').checked) running = false; else confirmMove();
+    updateButtons();
+  });
+  ['m0', 'm1', 'm2'].forEach(function (id) {
+    $(id).addEventListener('change', function () {
+      if (!$('m0').checked && !$('m1').checked && !$('m2').checked) { $(id).checked = true; return; }
+      if (done) { done = false; statusText = 'Træktyperne er ændret. Søger videre.'; redraw(); updateButtons(); }
+    });
+  });
+
+  function onResize() { sizeChart(); drawChart(); }
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(chv);
+  else window.addEventListener('resize', onResize);
+  if (window.MutationObserver) new MutationObserver(drawChart).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', drawChart);
+  }
+
+  build();
+  newWishes();
+  sizeChart();
+  reset();
+  if (running) {
+    // let the random starting plan sit on screen for a moment before the first move
+    running = false; updateButtons();
+    setTimeout(function () { if (!done && !anim && !$('pv').checked) { running = true; updateButtons(); } }, 900);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
